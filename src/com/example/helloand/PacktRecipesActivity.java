@@ -1,11 +1,5 @@
 package com.example.helloand;
 
-import java.io.IOException;
-
-import org.andengine.audio.music.Music;
-import org.andengine.audio.music.MusicFactory;
-import org.andengine.audio.sound.Sound;
-import org.andengine.audio.sound.SoundFactory;
 import org.andengine.engine.Engine;
 import org.andengine.engine.FixedStepEngine;
 import org.andengine.engine.camera.Camera;
@@ -15,22 +9,11 @@ import org.andengine.engine.options.WakeLockOptions;
 import org.andengine.engine.options.resolutionpolicy.FillResolutionPolicy;
 import org.andengine.entity.scene.Scene;
 import org.andengine.entity.sprite.Sprite;
-import org.andengine.opengl.texture.TextureOptions;
-import org.andengine.opengl.texture.atlas.bitmap.BitmapTextureAtlas;
-import org.andengine.opengl.texture.atlas.bitmap.BitmapTextureAtlasTextureRegionFactory;
-import org.andengine.opengl.texture.atlas.bitmap.BuildableBitmapTextureAtlas;
-import org.andengine.opengl.texture.atlas.bitmap.source.IBitmapTextureAtlasSource;
-import org.andengine.opengl.texture.atlas.buildable.builder.BlackPawnTextureAtlasBuilder;
-import org.andengine.opengl.texture.atlas.buildable.builder.ITextureAtlasBuilder.TextureAtlasBuilderException;
-import org.andengine.opengl.texture.bitmap.BitmapTextureFormat;
-import org.andengine.opengl.texture.region.ITextureRegion;
+import org.andengine.opengl.font.Font;
+import org.andengine.opengl.font.FontFactory;
 import org.andengine.ui.activity.BaseGameActivity;
-import org.andengine.ui.activity.LayoutGameActivity;
-import org.andengine.util.debug.Debug;
 
-import android.os.Bundle;
-import android.app.Activity;
-import android.view.Menu;
+import android.graphics.Typeface;
 
 public class PacktRecipesActivity extends BaseGameActivity {
 
@@ -45,9 +28,6 @@ public class PacktRecipesActivity extends BaseGameActivity {
     // Declare a Scene object for our activity
     private Scene mScene;
 
-    Sound mSound;
-    Music mMusic;
-    
     /*
     * The onCreateEngineOptions method is responsible for creating the options to be
     * applied to the Engine object once it is created. The options include,
@@ -100,25 +80,14 @@ public class PacktRecipesActivity extends BaseGameActivity {
     @Override
     public void onCreateResources(
     OnCreateResourcesCallback pOnCreateResourcesCallback) {
-        /* Set the base path for our SoundFactory and MusicFactory to
-        * define where they will look for audio files.
-        */
-        SoundFactory.setAssetBasePath("sfx/");
-        MusicFactory.setAssetBasePath("sfx/");
-        
-        // Load our "sound.mp3" file into a Sound object
-        try {
-            mSound = SoundFactory.createSoundFromAsset(getSoundManager(), this, "sound.mp3");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        // Load our "music.mp3" file into a music object
-        try {
-            mMusic = MusicFactory.createMusicFromAsset(getMusicManager(), this, "music.mp3");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        ResourceManager.getInstance().loadSounds(mEngine, this);
 
+        // FIXME: font doesn't work
+        // Add font
+        Font mFont = FontFactory.create(mEngine.getFontManager(), mEngine.getTextureManager(), 256, 256,
+                Typeface.create(Typeface.DEFAULT, Typeface.NORMAL), 32f, true, org.andengine.util.color.Color.WHITE_ABGR_PACKED_INT);
+        mFont.load();
+        mFont.prepareLetters("AAAABBBBBAAAAAA".toCharArray());
         /* We should notify the pOnCreateResourcesCallback that we've finished
         * loading all of the necessary resources in our game AFTER they are loaded.
         * onCreateResourcesFinished() should be the last method called. */
@@ -130,8 +99,10 @@ public class PacktRecipesActivity extends BaseGameActivity {
     */
     @Override
     public synchronized void onResumeGame() {
-        if(mMusic != null && !mMusic.isPlaying()){
-            mMusic.play();
+        if(ResourceManager.getInstance().mMusic != null && !ResourceManager.getInstance().mMusic.isPlaying()){
+            UserData.getInstance().setSoundMuted(false);
+            if(UserData.getInstance().isSoundMuted() == false)
+                ResourceManager.getInstance().mMusic.play();
         }
         super.onResumeGame();
     }
@@ -141,8 +112,8 @@ public class PacktRecipesActivity extends BaseGameActivity {
     */
     @Override
     public synchronized void onPauseGame() {
-        if(mMusic != null && mMusic.isPlaying()){
-            mMusic.pause();
+        if(ResourceManager.getInstance().mMusic != null && ResourceManager.getInstance().mMusic.isPlaying()){
+            ResourceManager.getInstance().mMusic.pause();
         }
         super.onPauseGame();
     }
@@ -158,7 +129,11 @@ public class PacktRecipesActivity extends BaseGameActivity {
         // Create the Scene object
         mScene = new Scene();
 
-        loadGameTextures();
+        ResourceManager.getInstance().loadGameTextures(mEngine, this);
+        ResourceManager.getInstance().mSquareTextureRegion.setTextureSize(800, 480);
+        // Create a sprite which stretches across the full screen
+        Sprite sprite = new Sprite(0, 0, 800, 480, ResourceManager.getInstance().mSquareTextureRegion, mEngine.getVertexBufferObjectManager());
+        mScene.attachChild(sprite);
         // Notify the callback that we're finished creating the scene, returning
         // mScene to the mEngine object (handled automatically)
         pOnCreateSceneCallback.onCreateSceneFinished(mScene);
@@ -176,51 +151,7 @@ public class PacktRecipesActivity extends BaseGameActivity {
         // methods, should be called once we are finished populating the scene.
         pOnPopulateSceneCallback.onPopulateSceneFinished();
     }
-    
-    public void loadGameTextures()
-    {
-        BitmapTextureAtlasTextureRegionFactory.setAssetBasePath("gfx/");
-        // Create the texture atlas at a size of 120x120 pixels
-        BitmapTextureAtlas mBitmapTextureAtlas = new BitmapTextureAtlas(mEngine.getTextureManager(), 120, 120,
-                                                        BitmapTextureFormat.RGB_565, TextureOptions.BILINEAR);
-        /* Create rectangle one at position (10, 10) on the
-        mBitmapTextureAtlas */
-        ITextureRegion mRectangleOneTextureRegion =
-        BitmapTextureAtlasTextureRegionFactory.createFromAsset(mBitmapTextureAtlas, this, "rectangle_one.png", 10, 10);
-        /* Create rectangle two at position (50, 10) on the
-        mBitmapTextureAtlas */
-        ITextureRegion mRectangleTwoTextureRegion =
-        BitmapTextureAtlasTextureRegionFactory.createFromAsset(mBitmapTextureAtlas, this, "rectangle_two.png", 50, 10);
-        /* Create rectangle three at position (10, 60) on the
-        mBitmapTextureAtlas */
-        ITextureRegion mRectangleThreeTextureRegion =
-        BitmapTextureAtlasTextureRegionFactory.createFromAsset(mBitmapTextureAtlas, this, "rectangle_three.png", 10, 60);
 
-        // load our ITextureRegion objects into memory. 
-        mBitmapTextureAtlas.load();
-
-        /* Create our repeating texture. Repeating textures require width/
-        height which are a power of two */
-        BuildableBitmapTextureAtlas terrainTexture = new BuildableBitmapTextureAtlas(mEngine.getTextureManager(), 32, 32,
-                                                            BitmapTextureFormat.RGB_565, TextureOptions.REPEATING_BILINEAR);
-
-        // Create texture region - nothing new here
-        ITextureRegion mSquareTextureRegion = BitmapTextureAtlasTextureRegionFactory.createFromAsset(terrainTexture, this, "square.png");
-        try {
-            // Repeating textures should not have padding
-            terrainTexture.build(new BlackPawnTextureAtlasBuilder<IBitmapTextureAtlasSource, BitmapTextureAtlas>(0, 0, 0));
-            terrainTexture.load();
-        } catch (TextureAtlasBuilderException e) {
-            Debug.e(e);
-        }
-
-        /* Increase the texture region's size, allowing repeating textures to
-        stretch up to 800x480 */
-        mSquareTextureRegion.setTextureSize(800, 480);
-        // Create a sprite which stretches across the full screen
-        Sprite sprite = new Sprite(0, 0, 800, 480, mSquareTextureRegion, mEngine.getVertexBufferObjectManager());
-        mScene.attachChild(sprite);
-    }
 //    @Override
 //    protected int getLayoutID() {
 //    return R.layout.activity_packt_recipes;
